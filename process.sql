@@ -1,0 +1,329 @@
+CREATE OR REPLACE PROCEDURE ETL_STORED_PROCEDURE()
+  RETURNS STRING
+  LANGUAGE JAVASCRIPT
+  EXECUTE AS CALLER
+AS
+$$
+BEGIN
+        -- CROPDATARAW
+    DROP TABLE IF EXISTS TEAMBARBIE.CROPDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.CROPDATASTAGING (
+        TIMESTAMP TIMESTAMP_NTZ,
+        CROP_TYPE VARCHAR(45),
+        CROP_YIELD FLOAT,
+        GROWTH_STAGE VARCHAR(45),
+        PEST_ISSUE VARCHAR(45)
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO "TEAMBARBIE"."CROPDATASTAGING" (TIMESTAMP, CROP_TYPE, CROP_YIELD, GROWTH_STAGE, PEST_ISSUE)
+    SELECT
+        TO_TIMESTAMP(TIMESTAMP, 'MM/DD/YYYY HH24:MI'),
+        CAST(CROP_TYPE AS VARCHAR(45)),
+        CAST(CROP_YIELD AS FLOAT),
+        CAST(GROWTH_STAGE AS VARCHAR(45)),
+        CAST(PEST_ISSUE AS VARCHAR(45))
+    FROM "RAWDATA"."CROPDATARAW" WHERE CROP_YIELD != 'NA' AND 
+     GROWTH_STAGE != 'NA' AND PEST_ISSUE != 'NA' AND CROP_TYPE IS NOT NULL;
+    
+    -- LOCATIONDATARAW
+    DROP TABLE IF EXISTS TEAMBARBIE.LOCATIONDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.LOCATIONDATASTAGING (
+        SENSOR_ID VARCHAR(100),
+        LOCATION_NAME VARCHAR(45),
+        LATITUDE DOUBLE,
+        LONGITUDE DOUBLE,
+        ELEVATION FLOAT,
+        REGION VARCHAR(45)
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO "TEAMBARBIE"."LOCATIONDATASTAGING" (SENSOR_ID,             LOCATION_NAME,LATITUDE,LONGITUDE,ELEVATION,REGION)
+    SELECT
+        CAST(SENSOR_ID AS VARCHAR(100)),
+        CAST(LOCATION_NAME AS VARCHAR(45)),
+        CAST(LATITUDE AS DOUBLE),
+        CAST(LONGITUDE AS DOUBLE),
+        CAST(ELEVATION AS FLOAT),
+        CAST(REGION AS VARCHAR(45))
+    FROM RAWDATA.LOCATIONDATARAW WHERE REGION IS NOT NULL;
+    
+    --SENSORDATA
+    DROP TABLE IF EXISTS TEAMBARBIE.SENSORDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.SENSORDATASTAGING (
+        SENSOR_ID VARCHAR(100),
+        TIMESTAMP VARCHAR,
+        TEMPERATURE FLOAT,
+        HUMIDITY FLOAT,
+        SOIL_MOISTURE FLOAT,
+        LIGHT_INTENSITY INT,
+        BATTERY_LEVEL FLOAT
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO TEAMBARBIE.SENSORDATASTAGING (SENSOR_ID,TIMESTAMP,TEMPERATURE ,HUMIDITY,SOIL_MOISTURE, LIGHT_INTENSITY,BATTERY_LEVEL)
+    SELECT
+        CAST(SENSOR_ID AS VARCHAR(100)),
+        TIMESTAMP,
+        CASE WHEN TEMPERATURE = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(TEMPERATURE AS FLOAT)),1) FROM RAWDATA.SENSORDATARAW WHERE TEMPERATURE != 'NA')
+        ELSE
+            CAST (TEMPERATURE AS FLOAT)
+        END,
+        CASE WHEN HUMIDITY = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(HUMIDITY AS FLOAT)),1) FROM RAWDATA.SENSORDATARAW WHERE HUMIDITY != 'NA')
+        ELSE
+            CAST(HUMIDITY AS FLOAT)
+        END,
+        CASE WHEN SOIL_MOISTURE = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(SOIL_MOISTURE AS FLOAT)),1) FROM RAWDATA.SENSORDATARAW WHERE SOIL_MOISTURE != 'NA')
+        ELSE
+            CAST(SOIL_MOISTURE AS FLOAT)
+        END,
+        CASE WHEN LIGHT_INTENSITY = 'NA' THEN
+            (SELECT AVG(CAST(LIGHT_INTENSITY AS INT)) FROM RAWDATA.SENSORDATARAW WHERE LIGHT_INTENSITY != 'NA')
+        ELSE
+            CAST(LIGHT_INTENSITY AS INT)
+        END,
+        CASE WHEN BATTERY_LEVEL = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(BATTERY_LEVEL AS FLOAT)),1) FROM RAWDATA.SENSORDATARAW WHERE BATTERY_LEVEL != 'NA')
+        ELSE
+            CAST(BATTERY_LEVEL AS FLOAT)
+        END
+    FROM RAWDATA.SENSORDATARAW;
+    
+    --SOILDATA
+    DROP TABLE IF EXISTS TEAMBARBIE.SOILDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.SOILDATASTAGING (
+        TIMESTAMP TIMESTAMP_NTZ,
+        SOIL_COMP FLOAT,
+        SOIL_MOISTURE FLOAT,
+        SOIL_PH FLOAT,
+        NITROGEN_LEVEL FLOAT,
+        PHOSPHORUS_LEVEL FLOAT, 
+        ORGANIC_MATTER FLOAT
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO TEAMBARBIE.SOILDATASTAGING (TIMESTAMP,
+        SOIL_COMP ,
+        SOIL_MOISTURE ,
+        SOIL_PH ,
+        NITROGEN_LEVEL ,
+        PHOSPHORUS_LEVEL , 
+        ORGANIC_MATTER )
+    SELECT
+        TO_TIMESTAMP(TIMESTAMP, 'MM/DD/YYYY HH24:MI'),
+        CASE WHEN SOIL_COMP = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(SOIL_COMP AS FLOAT)),1) FROM RAWDATA.SOILDATARAW WHERE SOIL_COMP != 'NA')
+        ELSE
+            CAST (SOIL_COMP AS FLOAT)
+        END,
+        CASE WHEN SOIL_MOISTURE = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(SOIL_MOISTURE AS FLOAT)),1) FROM RAWDATA.SOILDATARAW WHERE SOIL_MOISTURE != 'NA')
+        ELSE
+            CAST(SOIL_MOISTURE AS FLOAT)
+        END,
+        CASE WHEN SOIL_PH = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(SOIL_PH AS FLOAT)),1) FROM RAWDATA.SOILDATARAW WHERE SOIL_PH != 'NA')
+        ELSE
+            CAST(SOIL_PH AS FLOAT)
+        END,
+        CASE WHEN NITROGEN_LEVEL = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(NITROGEN_LEVEL AS FLOAT)),1) FROM RAWDATA.SOILDATARAW WHERE NITROGEN_LEVEL != 'NA')
+        ELSE
+            CAST(NITROGEN_LEVEL AS FLOAT)
+        END,
+        CASE WHEN PHOSPHORUS_LEVEL = 'NA' THEN
+        (SELECT ROUND(AVG(CAST(PHOSPHORUS_LEVEL AS FLOAT)),1)FROM RAWDATA.SOILDATARAW WHERE PHOSPHORUS_LEVEL != 'NA')
+        ELSE
+            CAST(PHOSPHORUS_LEVEL AS FLOAT)
+        END,
+    
+        CASE WHEN ORGANIC_MATTER = 'NA' THEN
+        (SELECT ROUND(AVG(CAST(ORGANIC_MATTER  AS FLOAT)),1) FROM RAWDATA.SOILDATARAW WHERE ORGANIC_MATTER != 'NA')
+        ELSE
+            CAST(ORGANIC_MATTER AS FLOAT)
+        END
+    FROM RAWDATA.SOILDATARAW WHERE SOIL_COMP IS NOT NULL ;
+    
+    --WEATHERDATA
+    DROP TABLE IF EXISTS TEAMBARBIE.WEATHERDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.WEATHERDATASTAGING (
+        TIMESTAMP TIMESTAMP_NTZ,
+        WEATHER_CONDITION VARCHAR(45),
+        WIND_SPEED FLOAT,
+        PRECIPITATION FLOAT
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO TEAMBARBIE.WEATHERDATASTAGING (TIMESTAMP,WEATHER_CONDITION,WIND_SPEED,PRECIPITATION)
+    SELECT
+        TO_TIMESTAMP(TIMESTAMP, 'MM/DD/YYYY HH24:MI'),
+       CAST(WEATHER_CONDITION AS VARCHAR(45)),
+        CASE WHEN WIND_SPEED = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(WIND_SPEED AS FLOAT)),1) FROM RAWDATA.WEATHERDATARAW WHERE WIND_SPEED != 'NA')
+        ELSE
+            CAST(WIND_SPEED AS FLOAT)
+        END,
+        CASE WHEN PRECIPITATION = 'NA' THEN
+            (SELECT ROUND(AVG(CAST(PRECIPITATION AS FLOAT)),1) FROM RAWDATA.WEATHERDATARAW WHERE PRECIPITATION != 'NA')
+        ELSE
+            CAST(PRECIPITATION AS FLOAT)
+        END
+    FROM RAWDATA.WEATHERDATARAW WHERE WEATHER_CONDITION IS NOT NULL AND WEATHER_CONDITION != 'NA';
+    
+    --update claar to clear
+    UPDATE TEAMBARBIE.WEATHERDATASTAGING
+    SET WEATHER_CONDITION = REPLACE(WEATHER_CONDITION, 'Claar', 'Clear')
+    WHERE WEATHER_CONDITION LIKE '%Claar%';
+    
+    -- PESTDATA
+    DROP TABLE IF EXISTS TEAMBARBIE.PESTDATASTAGING;
+    CREATE TABLE IF NOT EXISTS TEAMBARBIE.PESTDATASTAGING (
+        TIMESTAMP TIMESTAMP_NTZ,
+        PEST_TYPE VARCHAR(45),
+        PEST_DESCRIPTION VARCHAR(45),
+        PEST_SEVERITY VARCHAR(45)
+    );
+    
+    -- Step 2: Copy data from the original table to the new table
+    INSERT INTO TEAMBARBIE.PESTDATASTAGING (TIMESTAMP,PEST_TYPE,PEST_DESCRIPTION,PEST_SEVERITY)
+    SELECT
+        TO_TIMESTAMP(TIMESTAMP, 'MM/DD/YYYY HH24:MI'),
+       CAST(PEST_TYPE AS VARCHAR(45)),
+       CAST(PEST_DESCRIPTION AS VARCHAR(45)),
+       CAST(PEST_SEVERITY AS VARCHAR(45))
+    from RAWDATA.PESTDATARAW where PEST_DESCRIPTION is NOT NULL AND pest_type != 'NA' AND PEST_DESCRIPTION !='NA' AND PEST_SEVERITY != 'NA';
+    --update hihg to high
+    UPDATE TEAMBARBIE.PESTDATASTAGING
+    SET PEST_SEVERITY = REPLACE(PEST_SEVERITY, 'Hihg', 'high')
+    WHERE PEST_SEVERITY LIKE '%Hihg%';
+    
+    --INSERT DATA INTO NEW TABLES ALREADY CREATED
+    USE SCHEMA TEAMBARBIE;
+    -- Insert data into the Sensor_Dimension table from the Sensor_Dimension_Staging table
+    INSERT INTO Sensor_Dimension
+    (
+        Sensor_ID,
+        TIMESTAMP,
+        TEMPERATURE,
+        HUMIDITY,
+        SOIL_MOISTURE,
+        LIGHT_INTENSITY,
+        BATTERY_LEVEL
+    )
+    SELECT
+        Sensor_ID,
+        TIMESTAMP,
+        TEMPERATURE,
+        HUMIDITY,
+        SOIL_MOISTURE,
+        LIGHT_INTENSITY,
+        BATTERY_LEVEL
+    FROM
+        SENSORDATASTAGING;
+    
+    -- Insert data into the Location_Dimension table from the Location_Dimension_Staging table
+    INSERT INTO Location_Dimension
+    (
+        Sensor_ID,
+        Location_Name,
+        Latitude,
+        Longitude,
+        Elevation,
+        Region
+    )
+    SELECT
+        Sensor_ID,
+        Location_Name,
+        Latitude,
+        Longitude,
+        Elevation,
+        Region
+    FROM
+        LOCATIONDATASTAGING;
+    
+    -- Insert data into the Crop_Yield_Fact table from the Crop_Yield_Fact_Staging table
+    INSERT INTO Crop_Yield_Fact
+    (
+        Timestamp,
+        Crop_Type,
+        Crop_Yield,
+        Growth_Stage,
+        Pest_Issue
+    )
+    SELECT
+        Timestamp,
+        Crop_Type,
+        Crop_Yield,
+        Growth_Stage,
+        Pest_Issue
+    FROM
+        CROPDATASTAGING;
+    
+    -- Insert data into the Pest_Dimension table from the Pest_Dimension_Staging table
+    INSERT INTO Pest_Dimension
+    (
+        Timestamp,
+        Pest_Type,
+        Pest_Description,
+        Pest_Severity
+    )
+    SELECT
+        Timestamp,
+        Pest_Type,
+        Pest_Description,
+        Pest_Severity
+    FROM
+        PESTDATASTAGING;
+    
+    -- Insert data into the Soil_Dimension table from the Soil_Dimension_Staging table
+    INSERT INTO Soil_Dimension
+    (
+        Timestamp,
+        Soil_Comp,
+        Soil_Moisture,
+        Soil_pH,
+        Nitrogen_Level,
+        Phosphorus_Level,
+        Organic_Matter
+    )
+    SELECT
+        Timestamp,
+        Soil_Comp,
+        Soil_Moisture,
+        Soil_pH,
+        Nitrogen_Level,
+        Phosphorus_Level,
+        Organic_Matter
+    FROM
+        SOILDATASTAGING;
+    
+    -- Insert data into the Weather_Dimension table from the Weather_Dimension_Staging table
+    INSERT INTO Weather_Dimension
+    (
+        Timestamp,
+        Weather_Condition,
+        Wind_Speed,
+        Precipitation
+    )
+    SELECT
+        Timestamp,
+        Weather_Condition,
+        Wind_Speed,
+        Precipitation
+    FROM
+        WEATHERDATASTAGING;    
+
+    return 'Stored procedure executed successfully.';
+END;
+$$;
+
+
+CREATE OR REPLACE TRIGGER ETL_TRIGGER
+AFTER INSERT ON DFA23RAWDATA.RAWDATA
+FOR EACH ROW
+BEGIN
+    CALL ETL_STORED_PROCEDURE();
+END;
